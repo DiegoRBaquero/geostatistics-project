@@ -20,6 +20,8 @@
     <td style="width: 50%; text-align: center">
       <div id="map" class="map" style="width: 400px; height: 600px; margin: 0 auto;"></div>
       <form>
+        <label>Factor</label>
+        <input id="factor" type="range" min="0.5" max="3" step="0.1" value="2"/>
         <label>Radio</label>
         <input id="radius" type="range" min="1" max="50" step="1" value="5"/>
         <label>Difuminado</label>
@@ -62,8 +64,9 @@
     </td>
   </tr>
 </table>
-<span>Datos obtenidos de <a href="https://www.datos.gov.co/Seguridad-y-Defensa/Hurto-a-personas-2017/cwdd-8tiq">Datos Abiertos</a></span>
+<span>Datos obtenidos de <a href="https://www.datos.gov.co/Seguridad-y-Defensa/Hurto-a-personas-2017/cwdd-8tiq" target="_blank">Datos Abiertos</a></span>
 <script>
+  const factor = document.getElementById('factor')
   const blur = document.getElementById('blur')
   const radius = document.getElementById('radius')
   const property = document.getElementById('property')
@@ -84,7 +87,8 @@
   let prop = property.value
   fetch('data.json').then(res => res.json()).then(json => {
     data = json
-    update()
+    updateMap()
+    updateCharts()
   })
 
   let raster = new ol.layer.Tile({
@@ -113,20 +117,26 @@
     heatmap.setRadius(parseInt(radius.value, 10))
   })
 
-  property.addEventListener('change', update)
+  factor.addEventListener('input', updateMap)
+
+  property.addEventListener('change', () => {
+    updateMap()
+    updateCharts()
+  })
 
   const sexos = ['MASCULINO', 'FEMENINO']
   const armas = ['SIN EMPLEO DE ARMAS', 'ARMA DE FUEGO', 'CONTUNDENTES', 'ARMA BLANCA / CORTOPUNZANTE', 'ESCOPOLAMINA']
-  const charts = []
+  let charts = []
+  let contSexos = [0, 0]
+  let contArmas = [0, 0, 0, 0, 0]
 
-  function update () {
+  function updateMap () {
     prop = property.value
     vectorSource.clear()
-    charts.forEach(chart => chart.destroy())
     let max = 0
-    let contSexos = [0,0]
-    let contArmas = [0,0,0,0,0]
-    for(let p of data) {
+    contSexos = [0, 0]
+    contArmas = [0, 0, 0, 0, 0]
+    for (let p of data) {
       if (p[prop] && p[prop] > max) {
         max = p[prop]
       }
@@ -137,7 +147,7 @@
         for (let arma of armas) {
           if (p[`armas.${arma}`]) contArmas[armas.indexOf(arma)] += p[`armas.${arma}`]
         }
-      }else if (prop.startsWith('sexoArmas')) {
+      } else if (prop.startsWith('sexoArmas')) {
         const sexo = prop.split('.')[1]
         const arma = prop.split('.')[2]
         if (p[`sexo.${sexo}`]) contSexos[sexos.indexOf(sexo)] += p[`sexo.${sexo}`]
@@ -156,22 +166,23 @@
         }
       }
     }
-    max = Math.sqrt(max)
+    max = Math.pow(max, 1 / factor.value)
     console.log('Max', max)
     console.log('contSexos', contSexos)
     console.log('contArmas', contArmas)
-    for(let p of data) {
+    for (let p of data) {
       p[prop] = p[prop] || 0
       const ft = new ol.Feature({
         name: p.name,
         geometry: new ol.geom.Point(ol.proj.fromLonLat([p.lng, p.lat])),
-        properties: {
-          weight: Math.sqrt(p[prop]) / max
-        },
-        weight: Math.sqrt(p[prop]) / max
+        weight: Math.pow(p[prop], 1 / factor.value) / max
       })
       vectorSource.addFeature(ft)
     }
+  }
+  function updateCharts () {
+    charts.forEach(chart => chart.destroy())
+    charts = []
     charts.push(new Chart(ctx, {
       type: 'bar',
       data: {
