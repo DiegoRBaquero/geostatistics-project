@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hurtos a personas 2017 - Bogotá, Colombia</title>
+  <link rel="stylesheet" href="https://openlayers.org/en/v4.6.5/css/ol.css" type="text/css">
+  <script src="https://openlayers.org/en/v4.6.5/build/ol.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+<body style="text-align: center">
+<h1>Hurto a personas Bogotá 2017</h1>
+<table style="width: 100%; height: 70%">
+  <tr>
+    <td style="width: 50%; text-align: center">
+      <div id="map" class="map" style="width: 400px; height: 600px; margin: 0 auto;"></div>
+      <form>
+        <label>Radius</label>
+        <input id="radius" type="range" min="1" max="50" step="1" value="5"/>
+        <label>Blur</label>
+        <input id="blur" type="range" min="1" max="50" step="1" value="15"/>
+        <br>
+        <label>Filter</label>
+        <select id="property" type="text" value="total">
+          <option value="total">Todos</option>
+          <option value="sexo.MASCULINO">Sexo Masculino</option>
+          <option value="sexo.FEMENINO">Sexo Femenino</option>
+          <option value="armas.SIN EMPLEO DE ARMAS">Sin armas</option>
+          <option value="armas.ARMA DE FUEGO">Arma de fuego</option>
+          <option value="armas.CONTUNDENTES">Contundente</option>
+          <option value="armas.ARMA BLANCA / CORTOPUNZANTE">Arma blanca</option>
+          <option value="armas.ESCOPOLAMINA">Escopolamina</option>
+          <option value="sexoArmas.MASCULINO.SIN EMPLEO DE ARMAS">Sexo Masculino - Sin armas</option>
+          <option value="sexoArmas.MASCULINO.ARMA DE FUEGO">Sexo Masculino - Arma de fuego</option>
+          <option value="sexoArmas.MASCULINO.CONTUNDENTES">Sexo Masculino - Contundente</option>
+          <option value="sexoArmas.MASCULINO.ARMA BLANCA / CORTOPUNZANTE">Sexo Masculino - Arma blanca</option>
+          <option value="sexoArmas.MASCULINO.ESCOPOLAMINA">Sexo Masculino - Escopolamina</option>
+          <option value="sexoArmas.FEMENINO.SIN EMPLEO DE ARMAS">Sexo Femenino - Sin armas</option>
+          <option value="sexoArmas.FEMENINO.ARMA DE FUEGO">Sexo Femenino - Arma de fuego</option>
+          <option value="sexoArmas.FEMENINO.CONTUNDENTES">Sexo Femenino - Contundente</option>
+          <option value="sexoArmas.FEMENINO.ARMA BLANCA / CORTOPUNZANTE">Sexo Femenino - Arma blanca</option>
+          <option value="sexoArmas.FEMENINO.ESCOPOLAMINA">Sexo Femenino - Escopolamina</option>
+        </select>
+      </form>
+    </td>
+    <td style="width: 50%;">
+      <table>
+        <tr>
+          <td><canvas id="sexo" style="margin: 0 auto; padding-bottom: 5%" width="400" height="300"></canvas></td>
+          <td><canvas id="sexo2" style="margin: 0 auto; padding-bottom: 5%" width="400" height="300"></canvas></td>
+        </tr>
+        <tr>
+          <td><canvas id="armas" style="margin: 0 auto" width="400" height="300"></canvas></td>
+          <td><canvas id="armas2" style="margin: 0 auto" width="400" height="300"></canvas></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<script>
+  const blur = document.getElementById('blur')
+  const radius = document.getElementById('radius')
+  const property = document.getElementById('property')
+  const ctx = document.getElementById("sexo").getContext('2d')
+  const ctx2 = document.getElementById("armas").getContext('2d')
+  const ctx3 = document.getElementById("sexo2").getContext('2d')
+  const ctx4 = document.getElementById("armas2").getContext('2d')
+
+  const vectorSource = new ol.source.Vector()
+  const heatmap = new ol.layer.Heatmap({
+    source: vectorSource,
+    blur: 5,
+    radius: 10,
+    opacity: 0.7
+  })
+
+  let data = []
+  let prop = property.value
+  fetch('data.json').then(res => res.json()).then(json => {
+    data = json
+    update()
+  })
+
+  let raster = new ol.layer.Tile({
+    source: new ol.source.Stamen({
+      layer: 'toner'
+    })
+  })
+
+  let map = new ol.Map({
+    layers: [
+      raster,
+      heatmap
+    ],
+    target: 'map',
+    view: new ol.View({
+      center: ol.proj.fromLonLat([-74.0982061, 4.6503369]),
+      zoom: 11
+    })
+  })
+
+  blur.addEventListener('input', function() {
+    heatmap.setBlur(parseInt(blur.value, 10))
+  })
+
+  radius.addEventListener('input', function() {
+    heatmap.setRadius(parseInt(radius.value, 10))
+  })
+
+  property.addEventListener('change', update)
+
+  const sexos = ['MASCULINO', 'FEMENINO']
+  const armas = ['SIN EMPLEO DE ARMAS', 'ARMA DE FUEGO', 'CONTUNDENTES', 'ARMA BLANCA / CORTOPUNZANTE', 'ESCOPOLAMINA']
+  const charts = []
+
+  function update () {
+    prop = property.value
+    vectorSource.clear()
+    charts.forEach(chart => chart.destroy())
+    let max = 0
+    let contSexos = [0,0]
+    let contArmas = [0,0,0,0,0]
+    for(let p of data) {
+      if (p[prop] && p[prop] > max) {
+        max = p[prop]
+      }
+      if (prop === 'total') {
+        for (const sexo of sexos) {
+          if (p[`sexo.${sexo}`]) contSexos[sexos.indexOf(sexo)] += p[`sexo.${sexo}`]
+        }
+        for (let arma of armas) {
+          if (p[`armas.${arma}`]) contArmas[armas.indexOf(arma)] += p[`armas.${arma}`]
+        }
+      }else if (prop.startsWith('sexoArmas')) {
+        const sexo = prop.split('.')[1]
+        const arma = prop.split('.')[2]
+        if (p[`sexo.${sexo}`]) contSexos[sexos.indexOf(sexo)] += p[`sexo.${sexo}`]
+        if (p[`armas.${arma}`]) contArmas[armas.indexOf(arma)] += p[`armas.${arma}`]
+      } else if (prop.startsWith('armas')) {
+        const arma = prop.split('.')[1]
+        if (p[`armas.${arma}`]) contArmas[armas.indexOf(arma)] += p[`armas.${arma}`]
+        for (let sexo of sexos) {
+          if (p[`sexoArmas.${sexo}.${arma}`]) contSexos[sexos.indexOf(sexo)] += p[`sexoArmas.${sexo}.${arma}`]
+        }
+      } else if (prop.startsWith('sexo')) {
+        const sexo = prop.split('.')[1]
+        if (p[`sexo.${sexo}`]) contSexos[sexos.indexOf(sexo)] += p[`sexo.${sexo}`]
+        for (let arma of armas) {
+          if (p[`sexoArmas.${sexo}.${arma}`]) contArmas[armas.indexOf(arma)] += p[`sexoArmas.${sexo}.${arma}`]
+        }
+      }
+    }
+    max = Math.sqrt(max)
+    console.log('Max', max)
+    console.log('contSexos', contSexos)
+    console.log('contArmas', contArmas)
+    for(let p of data) {
+      p[prop] = p[prop] || 0
+      const ft = new ol.Feature({
+        name: p.name,
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([p.lng, p.lat])),
+        properties: {
+          weight: Math.sqrt(p[prop]) / max
+        },
+        weight: Math.sqrt(p[prop]) / max
+      })
+      vectorSource.addFeature(ft)
+    }
+    charts.push(new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sexos.map(sexo => sexo.charAt(0).toUpperCase() + sexo.slice(1).toLowerCase()),
+        datasets: [{
+          label: false,
+          data: contSexos,
+          backgroundColor: [
+            'rgba(54, 162, 235, 0.2)',
+            'rgba(255, 99, 132, 0.2)',
+          ],
+          borderColor: [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255,99,132,1)',
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        legend: {
+          display: false
+        },
+        title: {
+          display: true,
+          text: '# robos por sexo'
+        },
+        scales: {
+          yAxes: [{
+            ticks: {
+              beginAtZero:true
+            }
+          }]
+        },
+        responsive: false
+      }
+    }))
+    const sexSum = contSexos[0] + contSexos[1]
+    charts.push(new Chart(ctx3, {
+      type: 'pie',
+      data: {
+        labels: sexos.map(sexo => sexo.charAt(0).toUpperCase() + sexo.slice(1).toLowerCase()),
+        datasets: [{
+          label: false,
+          data: contSexos.map(sexo => (sexo/sexSum*100).toFixed(0)),
+          backgroundColor: [
+            'rgba(54, 162, 235, 0.2)',
+            'rgba(255, 99, 132, 0.2)',
+          ],
+          borderColor: [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255,99,132,1)',
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        legend: {
+          display: true
+        },
+        title: {
+          display: true,
+          text: '% sexo'
+        },
+        responsive: false
+      }
+    }))
+    charts.push(new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: armas.map(arma => arma.charAt(0).toUpperCase() + arma.slice(1).toLowerCase()),
+        datasets: [{
+          label: '',
+          data: contArmas,
+          backgroundColor: [
+            'rgba(100, 100, 100, 0.2)',
+            'rgba(200, 20, 20, 0.2)',
+            'rgba(240, 150, 0, 0.2)',
+            'rgba(240, 240, 0, 0.2)',
+            'rgba(50, 150, 255, 0.2)'
+          ],
+          borderColor: [
+            'rgba(150, 150, 150, 1)',
+            'rgba(200, 20, 20, 1)',
+            'rgba(240, 150, 0, 1)',
+            'rgba(240, 240, 0, 1)',
+            'rgba(50, 150, 255, 1)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        legend: {
+          display: false,
+        },
+        title: {
+          display: true,
+          text: '# robos por tipo de arma'
+        },
+        scales: {
+          yAxes: [{
+            ticks: {
+              beginAtZero:true
+            }
+          }],
+          xAxes: [{
+            ticks: {
+              autoSkip: false
+            }
+          }]
+        },
+        responsive: false
+      }
+    }))
+    const sumArmas = contArmas.reduce((sum, v) => sum + v)
+    charts.push(new Chart(ctx4, {
+      type: 'pie',
+      data: {
+        labels: armas.map(arma => arma.charAt(0).toUpperCase() + arma.slice(1).toLowerCase()),
+        datasets: [{
+          label: '',
+          data: contArmas.map(arma => (arma/sumArmas*100).toFixed(0)),
+          backgroundColor: [
+            'rgba(100, 100, 100, 0.2)',
+            'rgba(200, 20, 20, 0.2)',
+            'rgba(240, 150, 0, 0.2)',
+            'rgba(240, 240, 0, 0.2)',
+            'rgba(50, 150, 255, 0.2)'
+          ],
+          borderColor: [
+            'rgba(150, 150, 150, 1)',
+            'rgba(200, 20, 20, 1)',
+            'rgba(240, 150, 0, 1)',
+            'rgba(240, 240, 0, 1)',
+            'rgba(50, 150, 255, 1)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        title: {
+          display: true,
+          text: '% tipo de arma'
+        },
+        legend: {
+          position: 'bottom'
+        },
+        responsive: false
+      }
+    }))
+  }
+</script>
+</body>
+</html>
