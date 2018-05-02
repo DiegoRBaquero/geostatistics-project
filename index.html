@@ -21,8 +21,8 @@
       <div id="map" class="map" style="width: 400px; height: 600px; margin: 0 auto;"></div>
       <form>
         <label>Factor</label>
-        <input id="factor" type="range" min="0.5" max="3" step="0.1" value="2"/>
-        <label id="factorVal">2</label><br>
+        <input id="factor" type="range" min="0.5" max="3" step="0.1" value="1.5"/>
+        <label id="factorVal">1.5</label><br>
         <label>Radio</label>
         <input id="radius" type="range" min="1" max="50" step="1" value="5"/><br>
         <label>Difuminado</label>
@@ -120,7 +120,7 @@
 
   factor.addEventListener('input', () =>{
     updateMap()
-    factorVal.innerHTML = factor.value
+    factorVal.innerHTML = Number(factor.value).toFixed(1)
   })
 
   property.addEventListener('change', () => {
