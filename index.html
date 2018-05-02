@@ -86,7 +86,7 @@
 
   let data = []
   let prop = property.value
-  fetch('data.json').then(res => res.json()).then(json => {
+  fetch('data2.json').then(res => res.json()).then(json => {
     data = json
     updateMap()
     updateCharts()
@@ -178,7 +178,7 @@
       p[prop] = p[prop] || 0
       const ft = new ol.Feature({
         name: p.name,
-        geometry: new ol.geom.Point(ol.proj.fromLonLat([p.lng, p.lat])),
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([Number(p.lng), Number(p.lat)])),
         weight: Math.pow(p[prop], 1 / factor.value) / max
       })
       vectorSource.addFeature(ft)
